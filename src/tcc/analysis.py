@@ -1,8 +1,5 @@
-import re
-import os
-import json
-import subprocess
-import configparser
+import re, os, json, subprocess, configparser
+from shutil import rmtree
 from glob import glob
 from tempfile import TemporaryDirectory
 
@@ -72,7 +69,6 @@ class Parser:
         else:
             return 0
 
-
     def __write_box(self, box):
         """
         Generate a legal box.txt file in the tcc working directory
@@ -132,6 +128,19 @@ class Parser:
             if key in self.clusters_to_analyse:
                 clusters["Clusters"][key] = 1
 
+        include_clusters = kwargs.get("include_clusters")
+        if include_clusters:
+            for ec in include_clusters:
+                clusters["Clusters"][ec] = 1
+                self.clusters_to_analyse.append(ec)
+
+        exclude_clusters = kwargs.get("exclude_clusters")
+        if exclude_clusters:
+            for ec in exclude_clusters:
+                clusters["Clusters"][ec] = 0
+                self.clusters_to_analyse.append(ec)
+
+
         config_input = configparser.ConfigParser()
         config_input.read_dict(input_parameters)
         config_cluster = configparser.ConfigParser()
@@ -145,6 +154,17 @@ class Parser:
             os.path.join(self.__dir, "clusters_to_analyse.ini"), 'w'
         ) as f:
             config_cluster.write(f)
+
+    def clear(self):
+        """ delete the folder containing all tcc output
+        """
+        self.clusters_to_analyse = []
+        self.cluster_bool = {}    # if a particle is in different clusters
+        self.cluster_detail = {}  # the particle indices of each cluster
+        if (self.__dir not in os.listdir(os.getcwd())) and (self.__dir != "."):
+            return
+        else:
+            rmtree(self.__dir)
 
     def run(self, xyz, box, frames=None, tcc_exec="", silent=True, **kwargs):
         """
