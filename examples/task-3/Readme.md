@@ -1,4 +1,4 @@
-# Analysing TCC output with tcclib
+# Analysing a Numpy array with tcclib
 
 
 ## Item description
