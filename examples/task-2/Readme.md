@@ -1,4 +1,4 @@
-# Analysing TCC output with tcclib
+# Analysing an XYZ file with tcclib
 
 
 ## Item description
