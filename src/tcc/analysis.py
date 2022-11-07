@@ -12,6 +12,8 @@ from .utility import dump_xyz, XYZ, ClusterOutput
 ROOT = os.path.split(__file__)[0]
 TCC_EXEC = os.path.abspath(f"{ROOT}/tcc")
 CACHE_FILENAME = "tcclib_cache.json"
+INPUT_FILENAME = "inputparameters.ini"
+DEFAULT_XYZ_NAME = "sample"
 
 
 class Parser:
@@ -34,6 +36,7 @@ class Parser:
         if not work_dir:
             work_dir = "."
         self.__dir = work_dir
+        self.xyz_filename = None
         self.__raw_dir = os.path.join(self.__dir, 'raw_output')
         self.__cluster_dir = os.path.join(self.__dir, 'cluster_output')
         cache_fn = os.path.join(self.__dir, CACHE_FILENAME)
@@ -90,13 +93,10 @@ class Parser:
     def __write_parameters(self, **kwargs):
         """
         Write inputparameters.ini and clusters_to_analyse.ini
-
-        A symlink named `sample` should be inside self__dir, linking
-            to the xyz file to be analysed
         """
         input_parameters = {
             "Box": { "box_type": 1, "box_name": "box.txt" },
-            "Run": { "xyzfilename": "sample", "frames": 1},
+            "Run": { "xyzfilename": self.xyz_filename, "frames": 1},
             "Simulation": {
                 "rcutAA": 1.8, "rcutAB": 1.8, "rcutBB": 1.8, "min_cutAA": 0.0,
                 "bond_type": 1, "PBCs": 1, "voronoi_parameter": 0.82,
@@ -147,7 +147,7 @@ class Parser:
         config_cluster.read_dict(clusters)
 
         with open(
-            os.path.join(self.__dir, "inputparameters.ini"), 'w'
+            os.path.join(self.__dir, INPUT_FILENAME), 'w'
         ) as f:
             config_input.write(f)
         with open(
@@ -199,10 +199,11 @@ class Parser:
         if (self.__dir not in os.listdir(os.getcwd())) and (self.__dir != "."):
             os.makedirs(os.path.join(os.getcwd(), self.__dir))
 
+        self.xyz_filename = DEFAULT_XYZ_NAME
         self.__write_box(np.array(box))
 
         # create a soft link of the xyz file to self.__dir
-        soft_link = os.path.join(self.__dir, "sample")
+        soft_link = os.path.join(self.__dir, self.xyz_filename)
         if os.path.isfile(soft_link):
             os.remove(soft_link)
         os.symlink(src=xyz_path, dst=soft_link)
@@ -226,13 +227,12 @@ class Parser:
 
     def __parse_raw(self):
         if not os.path.isdir(self.__raw_dir):
-        #    raise FileNotFoundError(
-        #        "No raw_output folder, rerun the tcc with Output.raw = 1"
-        #    )
             return
-        cluster_name_pattern = re.compile(r'sample.*raw_(.+)')
+        cluster_name_pattern = re.compile(r'{}.*raw_(.+)'.format(self.xyz_filename))
         filenames = glob(
-            "{folder}/sample*raw_*".format(folder=self.__raw_dir)
+            "{folder}/{name}*raw_*".format(
+                folder=self.__raw_dir, name=self.xyz_filename
+            )
         )
         filenames = [os.path.basename(fn) for fn in filenames]
         filenames.sort()
@@ -241,8 +241,10 @@ class Parser:
         ]
         for cn in cluster_names:
             fn = glob(
-                "{folder}/sample*raw_{cluster_name}".format(
-                    folder=self.__raw_dir, cluster_name=cn
+                "{folder}/{xyz_name}*raw_{cluster_name}".format(
+                    folder=self.__raw_dir,
+                    xyz_name=self.xyz_filename,
+                    cluster_name=cn,
                 )
             )
             if len(fn) == 0:
@@ -261,13 +263,14 @@ class Parser:
 
     def __parse_cluster(self):
         if not os.path.isdir(self.__cluster_dir):
-            #raise FileNotFoundError(
-            #    "No cluster_output folder, rerun the tcc with Output.cluster = 1"
-            #)
             return
-        cluster_name_pattern = re.compile(r'sample.*clusts_(.+)')
+        cluster_name_pattern = re.compile(
+            r'{name}.*clusts_(.+)'.format(name=self.xyz_filename)
+        )
         filenames = glob(
-            "{folder}/sample*clusts_*".format(folder=self.__cluster_dir)
+            "{folder}/{name}*clusts_*".format(
+                folder=self.__cluster_dir, name=self.xyz_filename,
+            )
         )
         filenames = [os.path.basename(fn) for fn in filenames]
         filenames.sort()
@@ -276,8 +279,10 @@ class Parser:
         ]
         for cn in cluster_names:
             fn = glob(
-                "{folder}/sample*clusts_{cluster_name}".format(
-                    folder=self.__cluster_dir, cluster_name=cn
+                "{folder}/{xyz_name}*clusts_{cluster_name}".format(
+                    folder=self.__cluster_dir,
+                    cluster_name=cn,
+                    xyz_name=self.xyz_filename
                 )
             )
             if len(fn) == 0:
@@ -294,12 +299,24 @@ class Parser:
                 cn: ClusterOutput(fn, delimiter='\t')
             })
 
+    def __parse_configurations(self):
+        """
+        Parsing the configurations for input files for useful information.
+        """
+        input_fn = os.path.join(self.__dir, INPUT_FILENAME)
+        if os.path.isfile(input_fn):
+            config_input = configparser.ConfigParser()
+            config_input.read(input_fn)
+            self.xyz_filename = config_input['Run']['xyzfilename']
+        else:
+            self.xyz_filename = None
+
     def parse(self, raw=True, cluster=True, cache=True):
         if not os.path.isdir(self.__dir):
             raise FileNotFoundError(
                 "Working directory does not exist\nUse .run() method to generate the results"
             )
-        # TODO: parse the existing configuration files
+        self.__parse_configurations()
         self.__parse_raw()
         self.__parse_cluster()
         if cache:
@@ -365,7 +382,7 @@ class Parser:
             pandas.DataFrame: a pandas table where each columns are the clusters
                 and each rows are different frames
         """
-        pattern = 'sample*.pop_per_frame'
+        pattern = '{name}*.pop_per_frame'.format(name=self.xyz_filename)
         fn = glob(os.path.join(self.__dir, pattern))
         if len(fn) == 1:
             fn = fn[0]
@@ -375,9 +392,19 @@ class Parser:
             )
         else:
             raise RuntimeError("Multiple population output files exist")
-        df = pd.read_csv(fn, sep='\t', header=0, index_col=0)
-        df.dropna(axis='columns', inplace=True)
-        return df.T
+        df = pd.read_csv(fn, sep='\t', header=0, index_col=0).T
+        # drop columns where all elements are NAN
+        df.dropna(axis='index', inplace=True, how='all')
+
+        # replace the NAN in the target clusters to 0
+        for cluster in self.clusters_to_analyse:
+            col = df[cluster]
+            col[np.isnan(col)] = 0
+            df[cluster] = col
+
+        # drop the
+        df.dropna(axis='columns', inplace=True, how='all')
+        return df
 
     def __cache(self):
         """
@@ -446,9 +473,12 @@ class OTF(Parser):
         if not tcc_exec:
             tcc_exec = TCC_EXEC  # use the default TCC executable
 
-        xyz_name = os.path.join(self._Parser__dir, 'sample')
+        self.xyz_filename = DEFAULT_XYZ_NAME
         for i, conf in enumerate(configurations):
-            dump_xyz(xyz_name, conf, comment=i+1)
+            dump_xyz(
+                os.path.join(self._Parser__dir, self.xyz_filename),
+                conf, comment=i+1
+            )
 
         self._Parser__write_box(np.array(box))
         self._Parser__write_parameters(frames=len(configurations), **kwargs)
