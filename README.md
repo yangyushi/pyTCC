@@ -5,6 +5,10 @@
 
 This package aims to provide a stand-alone Python interface for the [TCC](https://github.com/royallgroup/TCC) software.
 
+- This package calles the `TCC` binary executable in Python.
+- When installing `tcclib`, the latest release of `TCC` code will be compiled, generating a privite binary executable for `tcclib`
+- If you have your own `TCC` binary executable in the computer, it will **not** be affected.
+
 ## Install
 
 You can clone the repository from GitHub and install, with the following command.
@@ -17,14 +21,15 @@ python3 -m pip install . --user
 
 You will need a C compiler (like GCC) and CMake to build tcc. `tcclib` also depends on numpy and pandas.
 
-## Concept
+## Typical Tasks
 
-- This package is a wrapper of the original TCC software.
-- Upon installing `tcclib`, the `TCC` code will be compiled, and the binary executable will be used by `tcclib`
-- If you have your own `tcc` binary in the computer, it will **not** be affected. `tcclib` will **not** make any system wise change. For example, `tcclib` will **not** do anything to environment varialbes like `$PATH`.
-- There are two main functions of `tcclib` :
-  1. To generate input files for `TCC`
-  2. To parse the output file of `TCC`
+The following figure illustrates the typical tasks for `tcclib`.
+
+1. Analysing an existing TCC output folder. ([Example](examples/task-1))
+2. Calling TCC to analyse an XYZ file (on the disk), then analysing the output. ([Example](examples/task-2))
+3. Calling TCC to analyse a numpy array (in the memory), then analysing the output. ([Example](examples/task-3))
+
+![](examples/tasks.svg)
 
 ## Quick Start
 
@@ -77,9 +82,7 @@ The results were sotred inside a temporary folder, and will be deleted uplon the
 
 ### Setting Parameters
 
-For all the [input parameters for tcc](https://royallgroup.github.io/TCC/html/tcc_input_parameters.html), they can be set in the `Parser.run` or `OTF` calls.
-
-Here are some examples,
+For all the [input parameters for tcc](https://royallgroup.github.io/TCC/html/tcc_input_parameters.html), they can be set in the `Parser.run` or `OTF` calls. Here are some examples,
 
 ```python
 # set tcc parameters for parser

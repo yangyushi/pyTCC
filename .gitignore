@@ -10,3 +10,5 @@ dist
 **/tags
 test/**
 !test/*.py
+examples/task-2/tcc-output/**
+examples/**/tcclib_cache.json
