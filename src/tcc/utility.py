@@ -420,7 +420,7 @@ class ClusterOutput(FrameIter):
         )
 
 
-def dump_xyz(filename, positions, comment='', precision=10):
+def dump_xyz(filename, positions, comment='', precision=10, labels=None):
     """
     Dump positions into an xyz file. The data columns will be right aligned,
         enabling optimised parsing by `XYZ`.
@@ -436,12 +436,29 @@ def dump_xyz(filename, positions, comment='', precision=10):
     n, dim = positions.shape
     fmt = f'%.{precision}e'
     with open(filename, 'a') as f:
-        np.savetxt(
-            f, positions, delimiter=' ',
-            header='%s\n%s' % (n, comment),
-            comments='',
-            fmt=['A ' + fmt] + [fmt for i in range(dim - 1)]
-        )
+        if isinstance(labels, type(None)):
+            np.savetxt(
+                f, positions, delimiter=' ',
+                header='%s\n%s' % (n, comment),
+                comments='',
+                fmt=['A ' + fmt] + [fmt for i in range(dim - 1)]
+            )
+        else:
+            f2s = np.vectorize(
+                lambda x : np.format_float_scientific(
+                    x, precision=precision, unique=False
+                )
+            )
+            pos_str =f2s(positions)
+            data = np.concatenate([
+                labels[:, None], pos_str
+            ], axis=1)
+            np.savetxt(
+                f, data, delimiter=' ',
+                header='%s\n%s' % (n, comment),
+                comments='',
+                fmt=['%s'] * (dim + 1) #+ [fmt for i in range(dim)]
+            )
 
 
 def make_movie_bool(xyz, tcc, output, start=0, stop=None, clusters=None):
@@ -459,16 +476,28 @@ def make_movie_bool(xyz, tcc, output, start=0, stop=None, clusters=None):
         dump_xyz(output, data, comment=comment)
 
 
-def make_movie_count(xyz, tcc, output, start=0, stop=None, clusters=None):
+def make_movie_count(
+    xyz, tcc, output, start=0, stop=None, clusters=None, label_column=None,
+):
     if output in os.listdir('.'):
         os.remove(output)
     if isinstance(clusters, type(None)):
         clusters = tcc.cluster_bool.keys()
     if isinstance(stop, type(None)):
         stop = len(tcc)
-    comment = "x y z " + " ".join(clusters)
     for f in range(start, stop):
-        coord = xyz[f]  # n, 3
-        is_cluster = tcc.frame_count(f, clusters).to_numpy()  # n, m
-        data = np.concatenate((coord, is_cluster), axis=1)  # (n, m + 3)
-        dump_xyz(output, data, comment=comment)
+        cluster_count = tcc.frame_count(f, clusters).to_numpy()  # n, m
+        info = xyz[f]  # n, 3
+        if info.shape[1] == 3:  # no label
+            comment = "x y z " + " ".join(clusters)
+            print(info.shape, cluster_count.shape)
+            data = np.concatenate((info, cluster_count), axis=1)  # (n, m + 3)
+            dump_xyz(output, data, comment=comment)
+        elif info.shape[1] == 4:
+            comment = "L x y z " + " ".join(clusters)
+            coord = info[:, 1:].astype(float)
+            data = np.concatenate((coord, cluster_count), axis=1)  # (n, m + 3)
+            labels = info[:, 0]
+            dump_xyz(output, data, comment=comment, labels=labels)
+        else:
+            raise ValueError("Invalid shape", data.shape)
