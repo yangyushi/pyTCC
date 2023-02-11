@@ -15,7 +15,7 @@ subprocess.run("cp extern/TCC/bin/tcc src/tcc/tcc".split(" "))
 
 setuptools.setup(
     name="tcclib",
-    version="0.0.1",
+    version="0.0.2",
     author="Yushi Yang",
     author_email="yangyushi1992@icloud.com",
     description="A Python Wrapper for Topological Cluster Classification",
