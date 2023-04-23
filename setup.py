@@ -1,4 +1,5 @@
 import setuptools
+import os
 import subprocess
 
 
@@ -7,15 +8,19 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 
 # build TCC binary
+subprocess.run("rm -rf bin build".split(" "), cwd="extern/TCC")
 subprocess.run("mkdir bin".split(" "), cwd='extern/TCC')
-subprocess.run("cmake -S . -B build".split(" "), cwd='extern/TCC')
+subprocess.run(
+    "cmake -S . -B build -DCMAKE_C_FLAGS=-fcommon".split(" "),
+    cwd='extern/TCC',
+)
 subprocess.run("make install".split(" "), cwd='extern/TCC/build')
 subprocess.run("cp extern/TCC/bin/tcc src/tcc/tcc".split(" "))
 
 
 setuptools.setup(
     name="tcclib",
-    version="0.0.2",
+    version="0.0.3",
     author="Yushi Yang",
     author_email="yangyushi1992@icloud.com",
     description="A Python Wrapper for Topological Cluster Classification",
